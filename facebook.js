@@ -38,6 +38,18 @@ angular.module('facebook.sdk', [])
     this.getChannelUrl = function() {
         return config.channelUrl;
     };
+    this.setCheckStatus = function(checkStatus) {
+        configs.status = checkStatus;
+    };
+    this.getCheckStatus = function() {
+        return config.status;
+    };
+    this.setParseXFBML = function(parseXFBML) {
+        configs.xfbml = parseXFBML;
+    };
+    this.getParseXFBML = function() {
+        return config.xfbml;
+    };
 
     // Helper for parsing object formatted query 
     var helper = {};
