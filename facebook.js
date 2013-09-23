@@ -44,7 +44,7 @@ angular.module('facebook.sdk', [])
     helper.parseQuery = function (query) {
         var queryString = '/me?';
         if (query.users)
-            queryString = queryString.replace('me?', '?ids=' + query.users.join() + '&');
+            queryString = '/?ids=' + query.users.join() + '&';
 
         queryString += 'fields=' + helper.parseFields(query.fields);
         return queryString;
