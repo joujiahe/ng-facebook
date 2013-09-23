@@ -1,116 +1,174 @@
+(function(angular) {
+'use strict';
+
 angular.module('facebook.sdk', [])
 
 .provider('$facebook', function() {
-    var configs = {
-        appId      : undefined, // App ID
-        channelUrl : undefined, // Channel file for x-domain communication?
-        status     : true,      // Check login status
-        xfbml      : true,      // Parse XFBML tags or not?
-        permissions: 'email'    // Permissions request
-    };
+    var cachedHandles = [],
+        configs = {
+            appId      : undefined, // App ID
+            channelUrl : undefined, // Channel file for x-domain communication?
+            status     : true,      // Check login status
+            xfbml      : true,      // Parse XFBML tags or not?
+            permissions: 'email'    // Permissions request
+        };
 
+    // Configuration methods for Facebook SDK provider
     this.setConfigs = function(opts) {
         configs = angular.extend(configs, opts);
     };
-
     this.getConfigs = function(opts) {
         return configs;
     };
-
     this.setAppId = function(appId) {
         configs.appId = appId;
     };
-
     this.getAppId = function() {
         return configs.appId;
     };
-
     this.setPermissions = function(permissions) {
         configs.permissions = permissions;
     };
-
     this.getPermissions = function() {
         return configs.permissions;
     };
-
     this.setChannelUrl = function(channelUrl) {
         configs.channelUrl = channelUrl;
     };
-
     this.getChannelUrl = function() {
         return config.channelUrl;
     };
 
-    function statusHandler(response) {
-        //('The status of the session is: ' + response.status);
-        if (response.status === 'connected') {
-            // the user is logged in and has authenticated your
-            // app, and response.authResponse supplies
-            // the user's ID, a valid access token, a signed
-            // request, and the time the access token
-            // and signed request each expire
-
-            //console.log('connected');
-        } else if (response.status === 'not_authorized') {
-            // the user is logged in to Facebook,
-            // but has not authenticated your app
-
-            //console.log('not authorized');
-        } else { // response.status === 'unknown'
-            // the user isn't logged in to Facebook.
-            //console.log('unknown');
-        }
-    }
-
+    // Helper for parsing object formatted query 
     var helper = {};
     helper.parseQuery = function (query) {
-        var q = '/me?';
+        var queryString = '/me?';
         if (query.users)
-            q = q.replace('me?', '?ids=' + query.users.join() + '&');
+            queryString = queryString.replace('me?', '?ids=' + query.users.join() + '&');
 
-        q += 'fields=' + helper.parseFields(query.fields);
-        return q;
+        queryString += 'fields=' + helper.parseFields(query.fields);
+        return queryString;
     }
     helper.parseFields = function (queryFields) {
-        var q = '';
+        var queryString = '';
         queryFields.forEach(function(field, i) {
-            q += field.name;
+            queryString += field.name;
             if (field.fields) {
-                q += '.fields(';
-                q += helper.parseFields(field.fields);
-                q += ')';
+                queryString += '.fields(';
+                queryString += helper.parseFields(field.fields);
+                queryString += ')';
             }
             if (field.conditions) {
                 var conditions = field.conditions;
                 for (var key in conditions)
-                    q += '.' + key + '(' + conditions[key]+ ')'
+                    queryString += '.' + key + '(' + conditions[key]+ ')'
             }
         });
-        return q;
+        return queryString;
     }
 
-    this.$get = ['$window', function($window) {
+    // Handles method called whether Facebook SDK initialized or not
+    var handle = undefined;
+    function cacheHandle(fn) {
+        cachedHandles.push(fn);
+    }
+    function doHandle(fn) {
+        fn();
+    }
+    function executeCachedHandles() {
+        angular.forEach(cachedHandles, function(fn, i) {
+            fn();
+        });
+    }
+    handle = cacheHandle;
+
+    // Facebook SDK Service
+    this.$get = ['$window', '$log', function($window, $log) {
         var $FB = undefined;
         return {
+            fbAsyncInit: function(callback) {
+                $window.fbAsyncInit = callback;
+            },
             init: function() {
+                if (configs.appId !== undefined)
+                    this.initFacebook();
+                else
+                    $log.error('App ID should be configured before init!');
+            },
+            initFacebook: function() {
                 $FB = $window.FB;
                 $FB.init(configs);
+
+                // Executes FB.api() right after FB.init() will caused
+                // access token is not ready issue
+                handle = doHandle;
+                this.getLoginStatus(function() {
+                    executeCachedHandles();
+                });
             },
+            // Login/out
             login: function(callback) {
-                $FB.login(callback, {scope: configs.permissions});
+                handle(function() {
+                    $FB.login(callback, {scope: configs.permissions});
+                });
             },
             logout: function(callback) {
-                $FB.logout(callback);
+                handle(function() {
+                    $FB.logout(callback);
+                });
             },
-            //subscribe
-            //unsubscribe
-            //getAuthResponse,
-            //getLoginStatus,
-            //ui,
+            getAuthResponse: function(callback) {
+                handle(function() {
+                    $FB.getAuthResponse(callback);
+                });
+            },
+            getLoginStatus: function(callback) {
+                handle(function() {
+                    $FB.getLoginStatus(callback);
+                });
+            },
+            // Event (un)subscription
+            subscribeEvent: function(event, callback) {
+                handle(function() {
+                    $FB.Event.subscribe(event, callback);
+                });
+            },
+            unsubscribeEvent: function(event, callback) {
+                handle(function() {
+                    $FB.Event.subscribe(event, callback);
+                });
+            },
+            // Facebook UIs
+            ui: function(opts, callback) {
+                handle(function() {
+                    $FB.ui(opts, callback);
+                });
+            },
+            feedDialog: function(opts, callback) {
+                this.ui(angular.extend({method: 'feed'}, opts), callback)
+            },
+            oAuthDialog: function(opts, callback) {
+                this.ui(angular.extend({method: 'oauth'}, opts), callback)
+            },
+            addTabDialog: function(opts, callback) {
+                this.ui(angular.extend({method: 'pagetab'}, opts), callback)
+            },
+            friendsDialog: function(opts, callback) {
+                this.ui(angular.extend({method: 'friends'}, opts), callback)
+            },
+            requestsDialog: function(opts, callback) {
+                this.ui(angular.extend({method: 'apprequests'}, opts), callback)
+            },
+            sendDialog: function(opts, callback) {
+                this.ui(angular.extend({method: 'send'}, opts), callback)
+            },
             // Wrapper of FB.api()
             api: function(queryString, callback) {
-                $FB.api(queryString, callback);
+                handle(function() {
+                    $FB.api(queryString, callback);
+                });
             },
+            // API call with object formatted query
             query: function(query, callback) {
                 this.api(helper.parseQuery(query), callback);
             },
@@ -146,18 +204,22 @@ angular.module('facebook.sdk', [])
 })
 
 .config([function() {
+}])
+
+.run(['$facebook', '$log', function($facebook, $log) {
+    $facebook.login();
     // Load the SDK asynchronously
     (function(d, s, id){
         var js, fjs = d.getElementsByTagName(s)[0];
         if (d.getElementById(id)) {return;}
         js = d.createElement(s); js.id = id;
-        js.src = "//connect.facebook.net/en_US/all.js";
+        js.src = '//connect.facebook.net/en_UK/all.js';
         fjs.parentNode.insertBefore(js, fjs);
     }(document, 'script', 'facebook-jssdk'));
-}])
-
-.run(['$facebook', function($facebook){
-    window.fbAsyncInit = function() {
-        $facebook.init();
-    };
+    // Call Facebook provider initilizer
+    //$facebook.fbAsyncInit(function(){
+    //    $facebook.init();
+    //});
 }]);
+
+})(angular);
