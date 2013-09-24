@@ -1,7 +1,7 @@
 (function(angular) {
 'use strict';
 
-angular.module('facebook.sdk', [])
+angular.module('ngFacebook', [])
 
 .provider('$facebook', function() {
     var cachedHandles = [],
