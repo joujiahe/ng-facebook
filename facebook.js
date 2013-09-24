@@ -219,7 +219,6 @@ angular.module('facebook.sdk', [])
 }])
 
 .run(['$facebook', '$log', function($facebook, $log) {
-    $facebook.login();
     // Load the SDK asynchronously
     (function(d, s, id){
         var js, fjs = d.getElementsByTagName(s)[0];
@@ -228,10 +227,6 @@ angular.module('facebook.sdk', [])
         js.src = '//connect.facebook.net/en_UK/all.js';
         fjs.parentNode.insertBefore(js, fjs);
     }(document, 'script', 'facebook-jssdk'));
-    // Call Facebook provider initilizer
-    //$facebook.fbAsyncInit(function(){
-    //    $facebook.init();
-    //});
 }]);
 
 })(angular);
