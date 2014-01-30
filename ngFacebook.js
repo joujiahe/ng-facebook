@@ -4,94 +4,51 @@
 angular.module('ngFacebook', [])
 
 .provider('ngFacebook', function() {
-    // Default Configurations
-    var configs = {
-            appId      : undefined, // App ID
-            channelUrl : undefined, // Channel file for x-domain communication?
-            status     : true,      // Check login status
-            xfbml      : true,      // Parse XFBML tags or not?
-            permissions: 'email'    // Permissions request
-        };
-
-    // Initializatin
-    this.init = function(opts) {
-        this.setConfigs(opts);
-
-        window.fbAsyncInit = function() {
-            FB.init(configs);
-        };
+    // Encapsulate Facebook configs
+    var configs = undefined;
+    this.setConfig = function setFacebookConfig(opts) {
+        configs = opts;
     };
 
-    // Configuration methods for Facebook SDK provider
-    this.setConfigs = function(opts) {
-        configs = angular.extend(configs, opts);
-    };
-    this.getConfigs = function(opts) {
-        return configs;
-    };
-    this.setAppId = function(appId) {
-        configs.appId = appId;
-    };
-    this.getAppId = function() {
-        return configs.appId;
-    };
-    this.setPermissions = function(permissions) {
-        configs.permissions = permissions;
-    };
-    this.getPermissions = function() {
-        return configs.permissions;
-    };
-    this.setChannelUrl = function(channelUrl) {
-        configs.channelUrl = channelUrl;
-    };
-    this.getChannelUrl = function() {
-        return config.channelUrl;
-    };
-    this.setCheckStatus = function(checkStatus) {
-        configs.status = checkStatus;
-    };
-    this.getCheckStatus = function() {
-        return config.status;
-    };
-    this.setParseXFBML = function(parseXFBML) {
-        configs.xfbml = parseXFBML;
-    };
-    this.getParseXFBML = function() {
-        return config.xfbml;
-    };
+    function parseQuery(query) {
+        var queryString = '/me?';
+        if (query.users)
+            queryString = '/?ids=' + query.users.join() + '&';
 
-    // A helper for parsing formatted query 
-    var QueryParser = {
-        parseQuery: function (query) {
-            var queryString = '/me?';
-            if (query.users)
-                queryString = '/?ids=' + query.users.join() + '&';
+        queryString += 'fields=' + parseFields(query.fields);
+        return queryString;
+    }
 
-            queryString += 'fields=' + this.parseFields(query.fields);
-            return queryString;
-        },
-        parseFields: function (queryFields) {
-            var queryString = '';
-            queryFields.forEach(function(field, i) {
-                queryString += field.name;
-                if (field.fields) {
-                    queryString += '.fields(';
-                    queryString += this.parseFields(field.fields);
-                    queryString += ')';
-                }
-                if (field.conditions) {
-                    var conditions = field.conditions;
-                    for (var key in conditions)
-                        queryString += '.' + key + '(' + conditions[key]+ ')'
-                }
-            });
-            return queryString;
-        }
-    };
+    function parseFields(queryFields) {
+        var queryString = '';
+        angular.forEach(queryFields, function(field, i) {
+            queryString += field.name;
+            if (field.fields != undefined) {
+                queryString += '.fields('
+                            + parseFields(field.fields)
+                            + ')';
+            }
+            if (field.conditions != undefined) {
+                var conditions = field.conditions;
+                angular.forEach(conditions, function(key, i) {
+                    queryString += '.' + key + '('
+                                + conditions[key]
+                                + ')';
+                });
+            }
+        });
+        return queryString;
+    }
 
     // Facebook SDK Service
     this.$get = ['$window', '$log', function($window, $log) {
         return {
+            // Initialization
+            init: function() {
+                $window.fbAsyncInit = function() {
+                    FB.init(configs);
+                };
+            },
             // Login/out
             login: function(callback) {
                 FB.login(callback, {scope: configs.permissions});
@@ -138,9 +95,9 @@ angular.module('ngFacebook', [])
             api: function(queryString, callback) {
                 FB.api(queryString, callback);
             },
-            // API call with object formatted query
+            // API call with formatted query object
             query: function(query, callback) {
-                this.api(QueryParser.parseQuery(query), callback);
+                this.api(parseQuery(query), callback);
             },
             getNewsFeed: function(callback) {
                 //this.api('/me?fields=home', callback);
@@ -176,7 +133,7 @@ angular.module('ngFacebook', [])
 .config([function() {
 }])
 
-.run([function() {
+.run(['$document', function($document) {
     // Load the SDK asynchronously
     (function(d, s, id){
         var js, fjs = d.getElementsByTagName(s)[0];
@@ -184,7 +141,5 @@ angular.module('ngFacebook', [])
         js = d.createElement(s); js.id = id;
         js.src = '//connect.facebook.net/en_UK/all.js';
         fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
-}]);
-
+    }($document[0], 'script', 'facebook-jssdk'));}]);
 })(angular);
