@@ -1,4 +1,4 @@
-ng-facebook
+ngFacebook
 ===========
 
 AngularJS Facebook Provider
